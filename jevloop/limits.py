@@ -16,7 +16,7 @@ MAX_WORKING_BUYS = 3
 MAX_SPREAD_BPS = 150.0
 
 # Minimum spread (below this we widen, not narrow further)
-MIN_SPREAD_BPS = 5.0
+MIN_SPREAD_BPS = 1.0
 
 # Maximum inventory imbalance (fraction of max position)
 MAX_INVENTORY_FRACTION = 0.8
