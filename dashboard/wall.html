@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>jev-loop wall</title>
+<style>
+  :root { --bg:#000; --text:#00ff41; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font:clamp(14px,2vw,24px)/1.4 'Menlo',monospace; padding:40px; }
+  h1 { font-size:clamp(24px,4vw,48px); margin-bottom:30px; }
+  .row { margin-bottom:8px; }
+  .label { opacity:.5; }
+</style>
+</head>
+<body>
+<h1>jev-loop ⚡</h1>
+<div class="row"><span class="label">symbol    </span><span id="symbol">—</span></div>
+<div class="row"><span class="label">mid       </span><span id="mid">—</span></div>
+<div class="row"><span class="label">position  </span><span id="position">—</span></div>
+<div class="row"><span class="label">spread    </span><span id="spread">—</span></div>
+<div class="row"><span class="label">action    </span><span id="action">—</span></div>
+<div class="row"><span class="label">rung      </span><span id="rung">—</span></div>
+<div class="row"><span class="label">regime    </span><span id="regime">—</span></div>
+<div class="row"><span class="label">direction </span><span id="direction">—</span></div>
+<div class="row"><span class="label">confidence</span><span id="confidence">—</span></div>
+<div class="row"><span class="label">tick      </span><span id="tick">—</span></div>
+<div class="row"><span class="label">drawdown  </span><span id="drawdown">—</span></div>
+<script>
+function fmt(v,d=2){return v==null?'—':Number(v).toFixed(d);}
+async function poll(){
+  try{
+    const r=await fetch('/latest.json');
+    if(r.ok){
+      const d=await r.json();
+      document.getElementById('symbol').textContent=d.symbol||'—';
+      document.getElementById('mid').textContent=fmt(d.state?.mid,2);
+      document.getElementById('position').textContent=fmt(d.state?.position_qty,4);
+      document.getElementById('spread').textContent=fmt(d.state?.spread_bps,1)+' bps';
+      document.getElementById('action').textContent=d.action||'—';
+      document.getElementById('rung').textContent=d.rung||'—';
+      document.getElementById('regime').textContent=d.battery?.regime||'—';
+      document.getElementById('direction').textContent=d.battery?.direction||'—';
+      document.getElementById('confidence').textContent=fmt(d.battery?.confidence,2);
+      document.getElementById('tick').textContent=d.tick??'—';
+      document.getElementById('drawdown').textContent=fmt(d.state?.drawdown_pct,3)+'%';
+    }
+  }catch(e){}
+  setTimeout(poll,1500);
+}
+poll();
+</script>
+</body>
+</html>

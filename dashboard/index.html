@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jev-loop dashboard</title>
+<style>
+  :root { --bg:#0f1117; --card:#1a1d27; --accent:#4f8ef7; --green:#22c55e; --red:#ef4444; --text:#e2e8f0; --sub:#94a3b8; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font:14px/1.5 'Menlo','Consolas',monospace; padding:20px; }
+  h1 { font-size:18px; margin-bottom:16px; color:var(--accent); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px; margin-bottom:20px; }
+  .card { background:var(--card); border-radius:8px; padding:14px; }
+  .card .label { font-size:11px; color:var(--sub); text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px; }
+  .card .value { font-size:22px; font-weight:700; }
+  .green { color:var(--green); } .red { color:var(--red); } .accent { color:var(--accent); }
+  .controls { display:flex; gap:10px; align-items:center; margin-bottom:20px; }
+  button { padding:8px 20px; border:none; border-radius:6px; font:14px 'Menlo',monospace; cursor:pointer; }
+  #btn-start { background:var(--green); color:#000; }
+  #btn-stop  { background:var(--red);   color:#fff; }
+  #status-text { font-size:13px; color:var(--sub); }
+  .log { background:var(--card); border-radius:8px; padding:14px; max-height:300px; overflow-y:auto; font-size:12px; }
+  .log p { margin-bottom:4px; color:var(--sub); }
+</style>
+</head>
+<body>
+<h1>⚡ jev-loop</h1>
+
+<div class="controls">
+  <button id="btn-start" onclick="control('resume')">▶ Start</button>
+  <button id="btn-stop"  onclick="control('pause')">⏹ Stop</button>
+  <span id="status-text">Loading…</span>
+</div>
+
+<div class="grid">
+  <div class="card"><div class="label">Symbol</div><div class="value accent" id="symbol">—</div></div>
+  <div class="card"><div class="label">Mid Price</div><div class="value" id="mid">—</div></div>
+  <div class="card"><div class="label">Position</div><div class="value" id="position">—</div></div>
+  <div class="card"><div class="label">Spread</div><div class="value" id="spread">—</div></div>
+  <div class="card"><div class="label">Drawdown</div><div class="value" id="drawdown">—</div></div>
+  <div class="card"><div class="label">Action</div><div class="value accent" id="action">—</div></div>
+  <div class="card"><div class="label">Rung</div><div class="value" id="rung">—</div></div>
+  <div class="card"><div class="label">Regime</div><div class="value" id="regime">—</div></div>
+  <div class="card"><div class="label">Direction</div><div class="value" id="direction">—</div></div>
+  <div class="card"><div class="label">Confidence</div><div class="value" id="confidence">—</div></div>
+  <div class="card"><div class="label">Tick</div><div class="value" id="tick">—</div></div>
+  <div class="card"><div class="label">Jev</div><div class="value" id="jev-source">—</div></div>
+</div>
+
+<div class="log" id="log"><p>Waiting for data…</p></div>
+
+<script>
+const TOKEN_KEY = 'jev_loop_token';
+
+async function fetchToken() {
+  // Token is stored client-side after first successful control call
+  // For local-only use, we retrieve it from the server's /state endpoint
+  // (the server generates it on first call to get_token())
+  return localStorage.getItem(TOKEN_KEY) || '';
+}
+
+async function control(action) {
+  const r = await fetch('/control', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action, token: await fetchToken()})
+  });
+  if (r.status === 403) {
+    // Ask user to paste their token (from ~/.jev-loop/control.token)
+    const tok = prompt('Paste your control token (from ~/.jev-loop/control.token):');
+    if (tok) { localStorage.setItem(TOKEN_KEY, tok); await control(action); }
+    return;
+  }
+  const data = await r.json();
+  document.getElementById('status-text').textContent = data.state;
+}
+
+function fmt(v, digits=2) { return v == null ? '—' : Number(v).toFixed(digits); }
+
+async function poll() {
+  try {
+    const [latestR, stateR] = await Promise.all([
+      fetch('/latest.json'), fetch('/state')
+    ]);
+    if (latestR.ok) {
+      const d = await latestR.json();
+      document.getElementById('symbol').textContent    = d.symbol || '—';
+      document.getElementById('mid').textContent       = fmt(d.state?.mid, 2);
+      document.getElementById('position').textContent  = fmt(d.state?.position_qty, 4);
+      document.getElementById('spread').textContent    = fmt(d.state?.spread_bps, 1) + ' bps';
+      document.getElementById('drawdown').textContent  = fmt(d.state?.drawdown_pct, 3) + '%';
+      document.getElementById('action').textContent    = d.action || '—';
+      document.getElementById('rung').textContent      = d.rung || '—';
+      document.getElementById('regime').textContent    = d.battery?.regime || '—';
+      document.getElementById('direction').textContent = d.battery?.direction || '—';
+      document.getElementById('confidence').textContent= fmt(d.battery?.confidence, 2);
+      document.getElementById('tick').textContent      = d.tick ?? '—';
+      document.getElementById('jev-source').textContent= d.battery?.mock ? 'MOCK' : 'LIVE';
+      const log = document.getElementById('log');
+      log.innerHTML = `<p>${new Date(d.ts*1000).toISOString()} | tick ${d.tick} | ${d.action}</p>` + log.innerHTML;
+      if (log.children.length > 50) log.removeChild(log.lastChild);
+    }
+    if (stateR.ok) {
+      const s = await stateR.json();
+      document.getElementById('status-text').textContent = s.state;
+    }
+  } catch(e) { /* loop keeps ticking */ }
+  setTimeout(poll, 1500);
+}
+poll();
+</script>
+</body>
+</html>
